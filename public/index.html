@@ -483,6 +483,11 @@
                 >
             </div>
 
+            <div class="input-group">
+                <label for="speaker-select">Output Device</label>
+                <select id="speaker-select"></select>
+            </div>
+
             <div id="callInfo" class="call-info hidden">
                 <div class="call-info-row">
                     <span class="call-info-label">Calling:</span>
@@ -653,6 +658,8 @@
             // Initialize application
             async function initialize() {
                 try {
+                    await navigator.mediaDevices.getUserMedia({ audio: true });
+
                     showInfo("Connecting to server...");
 
                     // Get access token from server
@@ -672,11 +679,14 @@
                     const token = data.token;
 
                     // Setup Twilio Device
-                    device = new Twilio.Device(token);
+                    device = new Twilio.Device(token, {
+                        logLevel: 1,
+                    });
 
                     device.on("ready", () => {
                         hideAlerts();
                         showSuccess("Connected! Ready to make calls");
+                        updateAudioDevices();
                         setTimeout(() => hideAlerts(), 3000);
                         updateStatus("Ready to call", "ready");
                         elements.callButton.disabled = false;
@@ -717,6 +727,24 @@
                     console.error("Initialization error:", error);
                     showError("Failed to initialize: " + error.message);
                     updateStatus("Error", "error");
+                }
+            }
+
+            function updateAudioDevices() {
+                const speakerSelect = document.getElementById("speaker-select");
+                speakerSelect.innerHTML = "";
+
+                device.audio.availableOutputDevices.forEach((outputDevice) => {
+                    const option = document.createElement("option");
+                    option.value = outputDevice.deviceId;
+                    option.textContent =
+                        outputDevice.label ||
+                        `Speaker (${outputDevice.deviceId})`;
+                    speakerSelect.appendChild(option);
+                });
+
+                if (device.audio.speakerDevice) {
+                    speakerSelect.value = device.audio.speakerDevice.deviceId;
                 }
             }
 
@@ -878,7 +906,17 @@
                 showModal();
             });
 
-            // window.addEventListener("DOMContentLoaded", initialize);
+            document
+                .getElementById("speaker-select")
+                .addEventListener("change", (e) => {
+                    const deviceId = e.target.value;
+
+                    // Set the selected device as the active output device
+                    Twilio.Device.audio.speakerDevices.set(deviceId);
+                    showInfo(
+                        `Output device set to ${e.target.options[e.target.selectedIndex].text}`,
+                    );
+                });
         </script>
     </body>
 </html>
