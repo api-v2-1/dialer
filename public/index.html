@@ -483,11 +483,6 @@
                 >
             </div>
 
-            <div class="input-group">
-                <label for="speaker-select">Output Device</label>
-                <select id="speaker-select"></select>
-            </div>
-
             <div id="callInfo" class="call-info hidden">
                 <div class="call-info-row">
                     <span class="call-info-label">Calling:</span>
@@ -638,10 +633,6 @@
             elements.phoneNumber.addEventListener("input", (e) => {
                 let value = e.target.value.replace(/\D/g, "");
 
-                if (value.length > 0 && value[0] !== "1") {
-                    value = "1" + value;
-                }
-
                 if (value.length > 11) {
                     value = value.slice(0, 11);
                 }
@@ -678,15 +669,17 @@
                     const data = await response.json();
                     const token = data.token;
 
-                    // Setup Twilio Device
+                    // Setup Twilio Device (v2.x)
                     device = new Twilio.Device(token, {
                         logLevel: 1,
+                        codecPreferences: ["opus", "pcmu"],
                     });
 
-                    device.on("ready", () => {
+                    // v2.x uses 'registered' instead of 'ready'
+                    device.on("registered", () => {
                         hideAlerts();
                         showSuccess("Connected! Ready to make calls");
-                        updateAudioDevices();
+
                         setTimeout(() => hideAlerts(), 3000);
                         updateStatus("Ready to call", "ready");
                         elements.callButton.disabled = false;
@@ -698,8 +691,9 @@
                         updateStatus("Error", "error");
                     });
 
-                    device.on("connect", (conn) => {
-                        currentConnection = conn;
+                    // v2.x uses different event name
+                    device.on("connect", (call) => {
+                        currentConnection = call;
                         updateStatus("Connected", "connected");
                         elements.callButton.classList.add("hidden");
                         elements.hangupButton.classList.remove("hidden");
@@ -707,44 +701,34 @@
                         elements.callInfo.classList.remove("hidden");
                         elements.volumeIndicator.classList.remove("hidden");
                         startCallTimer();
+
+                        // Setup call event listeners
+                        call.on("disconnect", () => {
+                            handleCallEnd();
+                        });
+
+                        call.on("cancel", () => {
+                            handleCallEnd();
+                            showInfo("Call was cancelled");
+                            setTimeout(() => hideAlerts(), 3000);
+                        });
+
+                        call.on("reject", () => {
+                            handleCallEnd();
+                            showError("Call was rejected");
+                        });
                     });
 
                     device.on("disconnect", () => {
                         handleCallEnd();
                     });
 
-                    device.on("cancel", () => {
-                        handleCallEnd();
-                        showInfo("Call was cancelled");
-                        setTimeout(() => hideAlerts(), 3000);
-                    });
-
-                    device.on("reject", () => {
-                        handleCallEnd();
-                        showError("Call was rejected");
-                    });
+                    // Register the device (required in v2.x)
+                    await device.register();
                 } catch (error) {
                     console.error("Initialization error:", error);
                     showError("Failed to initialize: " + error.message);
                     updateStatus("Error", "error");
-                }
-            }
-
-            function updateAudioDevices() {
-                const speakerSelect = document.getElementById("speaker-select");
-                speakerSelect.innerHTML = "";
-
-                device.audio.availableOutputDevices.forEach((outputDevice) => {
-                    const option = document.createElement("option");
-                    option.value = outputDevice.deviceId;
-                    option.textContent =
-                        outputDevice.label ||
-                        `Speaker (${outputDevice.deviceId})`;
-                    speakerSelect.appendChild(option);
-                });
-
-                if (device.audio.speakerDevice) {
-                    speakerSelect.value = device.audio.speakerDevice.deviceId;
                 }
             }
 
@@ -905,18 +889,6 @@
             document.addEventListener("DOMContentLoaded", () => {
                 showModal();
             });
-
-            document
-                .getElementById("speaker-select")
-                .addEventListener("change", (e) => {
-                    const deviceId = e.target.value;
-
-                    // Set the selected device as the active output device
-                    Twilio.Device.audio.speakerDevices.set(deviceId);
-                    showInfo(
-                        `Output device set to ${e.target.options[e.target.selectedIndex].text}`,
-                    );
-                });
         </script>
     </body>
 </html>
