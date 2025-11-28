@@ -633,15 +633,15 @@
             elements.phoneNumber.addEventListener("input", (e) => {
                 let value = e.target.value.replace(/\D/g, "");
 
-                if (value.length > 11) {
-                    value = value.slice(0, 11);
+                if (value.length > 13) {
+                    value = value.slice(0, 13);
                 }
 
                 let formatted = "";
                 if (value.length > 0) formatted += "+" + value[0];
-                if (value.length > 1) formatted += " " + value.slice(1, 4);
-                if (value.length > 4) formatted += "-" + value.slice(4, 7);
-                if (value.length > 7) formatted += "-" + value.slice(7, 11);
+                if (value.length > 2) formatted += " " + value.slice(1, 4);
+                if (value.length > 5) formatted += "-" + value.slice(4, 7);
+                if (value.length > 8) formatted += "-" + value.slice(7, 11);
 
                 e.target.value = formatted;
             });
